@@ -3,9 +3,28 @@ import pandas as pd
 import lightgbm as lgb
 import numpy as np
 from models.data_processing import preprocessing, generate_predictions
-from models.metrics import get_smoothed_mean_log_accuracy_ratio
+from models.metrics import get_smoothed_log_accuracy_ratio
 import time
 from io import StringIO
+
+
+def generate_count(campaign_grouped_predictions, train_df):
+    # Вычисляем предсказанное количество просмотров по каждой метрике
+    count_at_least_one = train_df['audience_size'] * campaign_grouped_predictions['at_least_one']
+    count_at_least_two = train_df['audience_size'] * campaign_grouped_predictions['at_least_two']
+    count_at_least_three = train_df['audience_size'] * campaign_grouped_predictions['at_least_three']
+
+    # Создаем новый DataFrame с результатами
+    result_df = campaign_grouped_predictions.copy()
+    result_df['count_at_least_one'] = count_at_least_one
+    result_df['count_at_least_two'] = count_at_least_two
+    result_df['count_at_least_three'] = count_at_least_three
+    
+    # Добавляем столбец с суммой трех метрик
+    result_df['total_count_predictions'] = count_at_least_one + count_at_least_two + count_at_least_three
+
+    return result_df
+
 
 # Функция для загрузки данных
 def load_data():
@@ -86,8 +105,13 @@ def main():
                 # Проверим, есть ли необходимые столбцы в данных
                 required_columns = ['at_least_one', 'at_least_two', 'at_least_three']
                 if all(col in answers.columns for col in required_columns) and all(col in predictions.columns for col in required_columns):
-                    metric = get_smoothed_mean_log_accuracy_ratio(predictions, answers)
-                    st.write(f"Метрика: {metric:.2f}%")
+                    metric = get_smoothed_log_accuracy_ratio(predictions, answers)
+                    df = pd.DataFrame(metric.items(), columns=["Метрика", "Значение (%)"])
+                    st.table(df)
+                    mean_metric = sum(metric.values()) / len(metric)
+                    st.write(f"Общая метрика для всех предсказаний: {mean_metric:.2f}%")
+    
+
                 else:
                     st.warning("В данных отсутствуют необходимые столбцы для расчета метрики.")
 
@@ -98,9 +122,25 @@ def main():
 
             output_file = output.getvalue().encode('utf-8')
 
+            #считаем часть аудитории в людях
+            data = generate_count(predictions, validate)
+            data['audience_size'] = validate['audience_size']
+            data['count_at_least_one'] = np.floor(data['count_at_least_one']).astype(int)
+            data['count_at_least_two'] = np.floor(data['count_at_least_two']).astype(int)
+            data['count_at_least_three'] = np.floor(data['count_at_least_three']).astype(int)
+            data['total_count_predictions'] = np.floor(data['total_count_predictions']).astype(int)
+            data = data.drop(columns=['at_least_one', 'at_least_two', 'at_least_three'])
+
+
+            # Преобразуем предсказания в файл для скачивания
+            data.to_csv(output, sep='\t', index=False)
+            output.seek(0)  # Возвращаем курсор в начало
+
+            output_file_count = output.getvalue().encode('utf-8')
             # Скачивание результатов
             st.write("Предсказания успешно получены!")
-            st.download_button('Скачать файл с предсказаниями', output_file, file_name="predictions.tsv")
+            st.download_button('Скачать файл с предсказаниями (в долях)', output_file, file_name="predictions.tsv")
+            st.download_button('Скачать файл с предсказаниями (в людях)', output_file_count, file_name="predictions_audience.tsv")
 
 # Запуск приложения
 if __name__ == "__main__":

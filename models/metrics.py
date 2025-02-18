@@ -1,5 +1,4 @@
 import sys
-
 import pandas as pd
 import numpy as np
 
@@ -8,27 +7,29 @@ def load_answers(answers_filename):
     return pd.read_csv(answers_filename, sep=",")  # замените на корректный разделитель
 
 
-
 def get_smoothed_log_mape_column_value(responses_column, answers_column, epsilon):
     return np.abs(np.log(
         (responses_column + epsilon)
         / (answers_column + epsilon)
     )).mean()
 
-def get_smoothed_mean_log_accuracy_ratio(answers, responses, epsilon=0.005):
-    log_accuracy_ratio_mean = np.array(
-        [
-            get_smoothed_log_mape_column_value(responses['at_least_one'], answers['at_least_one'], epsilon),
-            get_smoothed_log_mape_column_value(responses['at_least_two'], answers['at_least_two'], epsilon),
-            get_smoothed_log_mape_column_value(responses['at_least_three'], answers['at_least_three'], epsilon),
-        ]
-    ).mean()
 
-    percentage_error = 100 * (np.exp(log_accuracy_ratio_mean) - 1)
+def get_smoothed_log_accuracy_ratio(answers, responses, epsilon=0.005):
+    log_accuracy_ratio_dict = {}
 
-    return percentage_error.round(
-        decimals=2
-    )
+    # Перебираем все столбцы, начиная с 'at_least_one', 'at_least_two', 'at_least_three' и т.д.
+    for column in ['at_least_one', 'at_least_two', 'at_least_three']:
+        log_accuracy_ratio_dict[column] = get_smoothed_log_mape_column_value(
+            responses[column], answers[column], epsilon
+        )
+
+    # Рассчитываем процентную ошибку для каждого столбца
+    percentage_errors = {
+        column: 100 * (np.exp(value) - 1) for column, value in log_accuracy_ratio_dict.items()
+    }
+
+    return percentage_errors
+
 
 def main():
     answers_filename = sys.argv[1]
@@ -37,8 +38,12 @@ def main():
     answers = load_answers(answers_filename)
     responses = load_answers(responses_filename)
 
-    print(get_smoothed_mean_log_accuracy_ratio(answers, responses))
+    # Получаем ошибку для каждого столбца
+    percentage_errors = get_smoothed_log_accuracy_ratio(answers, responses)
 
+    # Выводим ошибку для каждого столбца
+    for column, error in percentage_errors.items():
+        print(f"Ошибка для {column}: {error:.2f}%")
 
 
 if __name__ == '__main__':
