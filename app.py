@@ -129,8 +129,11 @@ def main():
             data['count_at_least_two'] = np.floor(data['count_at_least_two']).astype(int)
             data['count_at_least_three'] = np.floor(data['count_at_least_three']).astype(int)
             data['total_count_predictions'] = np.floor(data['total_count_predictions']).astype(int)
-            data = data.drop(columns=['at_least_one', 'at_least_two', 'at_least_three'])
+            data = data.drop(columns=['campaign_id', 'at_least_one', 'at_least_two', 'at_least_three'])
 
+
+            st.write('Итоговая таблица предсказанных просмотров пользователей в зависимости от выбранной аудитории')
+            st.dataframe(data, use_container_width=True)
 
             # Преобразуем предсказания в файл для скачивания
             data.to_csv(output, sep='\t', index=False)
